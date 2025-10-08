@@ -14,14 +14,14 @@ const ContextMenu = ({ x, y, onAddNode, parentNode, onClose }) => {
   const menuRef = useRef(null);
 
   const nodeTypes = [
-    {
-      type: "text-input",
-      icon: Type,
-      label: "Text Input",
-      description: "Ask user to type a response",
-      color: "text-blue-400",
-      bgColor: "hover:bg-blue-500/10",
-    },
+    // {
+    //   type: "text-input",
+    //   icon: Type,
+    //   label: "Text Input",
+    //   description: "Ask user to type a response",
+    //   color: "text-blue-400",
+    //   bgColor: "hover:bg-blue-500/10",
+    // },
     {
       type: "multiple-choice",
       icon: CheckCircle,

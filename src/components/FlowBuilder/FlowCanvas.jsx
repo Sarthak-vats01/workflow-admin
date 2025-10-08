@@ -26,9 +26,9 @@ const FlowCanvas = () => {
   const [dragStartTransform, setDragStartTransform] = useState({ x: 0, y: 0 });
 
   const canvasRef = useRef(null);
-  const containerRef = useRef(null); // ✅ NEW: Container ref for better event handling
+  const containerRef = useRef(null);
 
-  // ✅ SMART AUTO-LAYOUT ALGORITHM (unchanged)
+  // ✅ SMART AUTO-LAYOUT ALGORITHM
   const applySmartLayout = (nodes, connections) => {
     console.log("🎨 Applying smart auto-layout...");
 
@@ -82,10 +82,10 @@ const FlowCanvas = () => {
     });
 
     // Layout configuration
-    const LEVEL_HEIGHT = 280; // Vertical spacing between levels
-    const NODE_SPACING = 320; // Horizontal spacing between siblings
-    const START_Y = 150; // Top margin
-    const CENTER_X = 600; // Canvas center
+    const LEVEL_HEIGHT = 280;
+    const NODE_SPACING = 320;
+    const START_Y = 150;
+    const CENTER_X = 600;
 
     // Position nodes level by level
     Array.from(nodesByLevel.keys())
@@ -125,7 +125,7 @@ const FlowCanvas = () => {
             const parent = layoutNodes.find((n) => n.id === parentId);
 
             if (parent) {
-              // Get all siblings (children of same parent)
+              // Get all siblings
               const siblings = (childrenMap.get(parentId) || [])
                 .map((id) => levelNodes.find((n) => n.id === id))
                 .filter(Boolean);
@@ -158,7 +158,7 @@ const FlowCanvas = () => {
             }
           });
 
-          // Handle orphaned nodes (no parent found)
+          // Handle orphaned nodes
           levelNodes.forEach((node, index) => {
             if (!positionedNodes.has(node.id)) {
               const nodeIndex = layoutNodes.findIndex((n) => n.id === node.id);
@@ -242,7 +242,6 @@ const FlowCanvas = () => {
       console.log(`🔄 Converting question ${index + 1}:`, question);
 
       let nodeType = "text-input";
-
       if (question.isFirst) {
         nodeType = "start";
       } else if (question.type === "choice") {
@@ -257,15 +256,29 @@ const FlowCanvas = () => {
         nodeType = "end";
       }
 
+      // ✅ FIXED: Handle both populated and non-populated nextQuestionId
+      let nextQuestionId = null;
+      if (question.nextQuestionId) {
+        if (typeof question.nextQuestionId === "object") {
+          // It's been populated by MongoDB - extract the _id
+          nextQuestionId = question.nextQuestionId._id;
+        } else {
+          // It's just a string ID
+          nextQuestionId = question.nextQuestionId;
+        }
+      }
+
       console.log(
-        `  └─ Determined type: ${nodeType} (from question.type: ${question.type})`
+        `  └─ Processed nextQuestionId: ${JSON.stringify(
+          question.nextQuestionId
+        )} → ${nextQuestionId}`
       );
 
       const visualNode = {
-        id: question._id,
+        id: question._id.toString(),
         type: nodeType,
-        position: {
-          x: 400, // Will be repositioned by smart layout
+        position: question.position || {
+          x: 400,
           y: 150 + index * 200,
         },
         data: {
@@ -288,7 +301,7 @@ const FlowCanvas = () => {
             showTypingIndicator: true,
           },
           isFirst: question.isFirst,
-          nextQuestionId: question.nextQuestionId,
+          nextQuestionId: nextQuestionId, // ✅ Use the extracted string ID
         },
       };
 
@@ -297,26 +310,37 @@ const FlowCanvas = () => {
     });
   };
 
+  // ✅ UPDATED: Hybrid connection generation
+  // ✅ FIXED: Hybrid connection generation with proper type handling
   const generateConnectionsFromQuestions = (questions) => {
     const connections = [];
 
     questions.forEach((question) => {
       console.log(`🔗 Processing connections for question:`, question._id);
 
-      // ✅ UNIFIED APPROACH: All question types use options for routing
+      // PRIORITY 1: Check options array first (modern routing)
       if (question.options && question.options.length > 0) {
+        console.log("🔄 Using options-based connections");
         question.options.forEach((option, index) => {
+          let targetId = null;
+          if (option.nextQuestionId) {
+            if (typeof option.nextQuestionId === "object") {
+              targetId = option.nextQuestionId._id;
+            } else {
+              targetId = option.nextQuestionId;
+            }
+          }
+
           if (
-            option.nextQuestionId &&
-            typeof option.nextQuestionId === "string" &&
-            option.nextQuestionId !== "END_CONVERSATION" &&
-            option.nextQuestionId !== ""
+            targetId &&
+            targetId !== "END_CONVERSATION" &&
+            targetId.toString().trim() !== ""
           ) {
             const connection = {
               id: `conn-${question._id}-option-${index}`,
-              source: question._id,
-              target: option.nextQuestionId,
-              label: option.label,
+              source: question._id.toString(),
+              target: targetId.toString(),
+              label: option.label || "Next",
               style: getConnectionStyle(question.type),
             };
             connections.push(connection);
@@ -324,30 +348,38 @@ const FlowCanvas = () => {
           }
         });
       }
-      // ✅ FALLBACK: Legacy nextQuestionId support (for existing data)
-      else if (question.nextQuestionId && question.type !== "choice") {
-        console.log(`🔍 NON-CHOICE CONNECTION DEBUG:`, {
-          questionId: question._id,
-          questionType: question.type,
-          hasNextQuestionId: !!question.nextQuestionId,
-          nextQuestionId: question.nextQuestionId,
-          nextQuestionIdType: typeof question.nextQuestionId,
-        });
 
-        const connection = {
-          id: `conn-${question._id}-next`,
-          source: question._id,
-          target: question.nextQuestionId,
-          label: question.type === "message" ? "Auto-advance" : "Next",
-          style: getConnectionStyle(question.type),
-        };
-        connections.push(connection);
-        console.log(`  └─ Added legacy nextQuestion connection:`, connection);
+      // PRIORITY 2: Fallback to legacy nextQuestionId (simple routing)
+      if (
+        question.nextQuestionId &&
+        question.nextQuestionId !== "END_CONVERSATION"
+      ) {
+        let targetId = null;
+        if (typeof question.nextQuestionId === "object") {
+          // It's been populated - extract _id
+          targetId = question.nextQuestionId._id;
+        } else {
+          // It's a string
+          targetId = question.nextQuestionId;
+        }
+
+        if (targetId && targetId.toString().trim() !== "") {
+          console.log("🔄 Using legacy nextQuestionId connection:", targetId);
+
+          const connection = {
+            id: `conn-${question._id}-next`,
+            source: question._id.toString(),
+            target: targetId.toString(),
+            label: question.type === "message" ? "Auto-advance" : "Next",
+            style: getConnectionStyle(question.type),
+          };
+          connections.push(connection);
+          console.log(`  └─ Added legacy connection:`, connection);
+        }
       }
     });
 
     console.log(`🔗 Total connections generated:`, connections.length);
-    console.log(`🔗 All connections:`, connections);
     return connections;
   };
 
@@ -457,17 +489,8 @@ const FlowCanvas = () => {
     loadQuestionsFromDatabase();
   };
 
-  // ✅ FIXED: Mouse handlers for dragging with debugging
+  // Mouse handlers for dragging
   const handleMouseDown = (e) => {
-    console.log("🖱️ Mouse down event:", {
-      target: e.target,
-      currentTarget: e.currentTarget,
-      button: e.button,
-      clientX: e.clientX,
-      clientY: e.clientY,
-    });
-
-    // Check if we're clicking on canvas or its direct child (the transform div)
     if (
       e.target === containerRef.current ||
       e.target === canvasRef.current ||
@@ -479,8 +502,6 @@ const FlowCanvas = () => {
       setDragStartTransform({ x: viewportTransform.x, y: viewportTransform.y });
       e.preventDefault();
       e.stopPropagation();
-    } else {
-      console.log("❌ Not starting drag - clicked on:", e.target);
     }
   };
 
@@ -490,8 +511,6 @@ const FlowCanvas = () => {
 
       const deltaX = e.clientX - dragStart.x;
       const deltaY = e.clientY - dragStart.y;
-
-      console.log("🖱️ Mouse move:", { deltaX, deltaY });
 
       setViewportTransform((prev) => ({
         ...prev,
@@ -517,11 +536,7 @@ const FlowCanvas = () => {
     [isDragging]
   );
 
-  // ✅ UPDATED: Canvas click handler
   const handleCanvasClick = (e) => {
-    console.log("🖱️ Canvas click:", { isDragging, target: e.target });
-
-    // Only clear selection if we're not dragging and clicking on canvas
     if (
       !isDragging &&
       (e.target === containerRef.current ||
@@ -599,12 +614,12 @@ const FlowCanvas = () => {
           dataCollection: savedQuestion.dataCollection,
           messageSettings: savedQuestion.messageSettings,
           isFirst: savedQuestion.isFirst,
+          nextQuestionId: savedQuestion.nextQuestionId,
         },
       };
 
       setNodes((prev) => {
         const updatedNodes = [...prev, newVisualNode];
-        // Auto-refresh layout after adding node
         setTimeout(() => refreshLayout(), 100);
         return updatedNodes;
       });
@@ -625,8 +640,27 @@ const FlowCanvas = () => {
         setConnections((prev) => [...prev, newConnection]);
 
         try {
-          const parentUpdateData = { nextQuestionId: savedQuestion._id };
-          await questionAPI.update(actualParent.id, parentUpdateData);
+          // ✅ UPDATED: Use hybrid routing for parent updates
+          if (actualParent.data.questionType === "choice") {
+            // For choice questions, add to options
+            const updatedOptions = [
+              ...(actualParent.data.options || []),
+              {
+                label: `New Option`,
+                actionType: "next_question",
+                nextQuestionId: savedQuestion._id,
+                buttonStyle: { variant: "primary", size: "medium" },
+              },
+            ];
+            await questionAPI.update(actualParent.id, {
+              options: updatedOptions,
+            });
+          } else {
+            // For non-choice questions, use nextQuestionId
+            await questionAPI.update(actualParent.id, {
+              nextQuestionId: savedQuestion._id,
+            });
+          }
           console.log("Updated parent question connection");
         } catch (updateError) {
           console.error("Error updating parent connection:", updateError);
@@ -748,8 +782,10 @@ const FlowCanvas = () => {
       );
       setNodeEditor(null);
 
-      // Refresh layout after save to handle any new connections
-      setTimeout(() => refreshLayout(), 100);
+      // Refresh connections and layout after save
+      setTimeout(() => {
+        loadQuestionsFromDatabase();
+      }, 100);
     } catch (error) {
       console.error("Error saving node:", error);
       alert("Error saving changes. Please check console and try again.");
@@ -770,7 +806,6 @@ const FlowCanvas = () => {
 
       setNodes((prev) => {
         const filteredNodes = prev.filter((n) => n.id !== nodeId);
-        // Auto-refresh layout after deletion
         setTimeout(() => {
           const remainingConnections = connections.filter(
             (c) => c.source !== nodeId && c.target !== nodeId
@@ -824,7 +859,7 @@ const FlowCanvas = () => {
     setViewportTransform({ x: 0, y: 0, scale: 1 });
   };
 
-  // ✅ FIXED: Global mouse event listeners with proper cleanup
+  // Global mouse event listeners with proper cleanup
   useEffect(() => {
     if (isDragging) {
       console.log("🖱️ Adding global mouse listeners");
@@ -833,7 +868,7 @@ const FlowCanvas = () => {
       });
       document.addEventListener("mouseup", handleMouseUp, { passive: false });
       document.body.style.cursor = "grabbing";
-      document.body.style.userSelect = "none"; // Prevent text selection while dragging
+      document.body.style.userSelect = "none";
     }
 
     return () => {
@@ -946,7 +981,7 @@ const FlowCanvas = () => {
           </div>
         </div>
 
-        {/* ✅ NEW: Debug info */}
+        {/* Debug info */}
         {isDragging && (
           <div className="absolute top-full left-4 bg-green-600 text-white px-2 py-1 rounded text-xs z-40">
             Dragging: {viewportTransform.x.toFixed(0)},{" "}
@@ -955,7 +990,7 @@ const FlowCanvas = () => {
         )}
       </div>
 
-      {/* ✅ FIXED: Canvas container with proper event handling */}
+      {/* Canvas container with proper event handling */}
       <div
         ref={containerRef}
         className={`w-full h-full pt-16 canvas-background ${
@@ -1058,7 +1093,7 @@ const FlowCanvas = () => {
         />
       )}
 
-      {/* ✅ UPDATED: Professional Status Bar with Debug Info */}
+      {/* Professional Status Bar with Debug Info */}
       <div className="absolute bottom-0 left-0 right-0 bg-slate-800/95 backdrop-blur border-t border-slate-700 px-6 py-2">
         <div className="flex items-center justify-between text-sm text-slate-400">
           <div className="flex items-center space-x-4">
