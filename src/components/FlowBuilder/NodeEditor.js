@@ -95,23 +95,17 @@ const NodeEditor = ({ node, onSave, onClose }) => {
         ...node.data,
         text: formData.text,
         questionType: formData.type,
-        options: formData.options,
+        // ✅ HYBRID ROUTING: Choice questions use options, others use nextQuestionId
+        options: formData.type === "choice" ? formData.options : [],
         dataCollection: formData.dataCollection,
         messageSettings: formData.messageSettings,
-        nextQuestionId: formData.nextQuestionId,
+        // ✅ For non-choice questions, set nextQuestionId from form
+        nextQuestionId:
+          formData.type !== "choice" ? formData.nextQuestionId : null,
       },
     };
 
-    // 🔍 DEBUG SPECIFICALLY FOR DATA_COLLECTION
-    if (formData.type === "data_collection") {
-      console.log("🔍 DATA_COLLECTION DEBUG:");
-      console.log("- Question ID:", node.id);
-      console.log("- Next Question ID:", formData.nextQuestionId);
-      console.log("- Next Question ID Type:", typeof formData.nextQuestionId);
-      console.log("- Is Empty String?", formData.nextQuestionId === "");
-      console.log("- Full Updated Node:", updatedNode);
-    }
-
+    console.log("💾 Saving node with hybrid routing:", updatedNode);
     onSave(updatedNode);
   };
 
@@ -457,142 +451,9 @@ const NodeEditor = ({ node, onSave, onClose }) => {
               </div>
             )}
 
-            {/* UNIFIED LINKING APPROACH FOR ALL NON-CHOICE TYPES */}
-            {(formData.type === "data_collection" ||
-              formData.type === "text" ||
-              formData.type === "message") && (
-              <div className="bg-slate-700 p-4 rounded-lg border border-slate-600">
-                <h3 className="font-medium text-white mb-3 flex items-center space-x-2">
-                  <CheckCircle className="w-4 h-4 text-blue-400" />
-                  <span>Next Question Routing</span>
-                </h3>
+            {/* ✅ SMART ROUTING UI - Different interfaces for different question types */}
 
-                {/* Ensure we have at least one "next" option */}
-                {(!formData.options || formData.options.length === 0) && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setFormData((prev) => ({
-                        ...prev,
-                        options: [
-                          {
-                            label:
-                              formData.type === "message"
-                                ? "Auto-continue"
-                                : "Continue",
-                            actionType: "next_question",
-                            actionValue: "",
-                            nextQuestionId: null,
-                            buttonStyle: { variant: "primary", size: "medium" },
-                          },
-                        ],
-                      }));
-                    }}
-                    className="flex items-center space-x-1 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors mb-3"
-                  >
-                    <Plus className="w-3 h-3" />
-                    <span>Add Next Question Route</span>
-                  </button>
-                )}
-
-                {/* Show routing options (same as choice questions) */}
-                {formData.options && formData.options.length > 0 && (
-                  <div className="space-y-3">
-                    {formData.options.map((option, index) => (
-                      <div
-                        key={index}
-                        className="bg-slate-600 p-3 rounded-lg border border-slate-500"
-                      >
-                        {/* Route Label */}
-                        <div className="mb-3">
-                          <label className="block text-xs font-medium text-slate-400 mb-1">
-                            Route Label
-                          </label>
-                          <input
-                            type="text"
-                            value={option.label}
-                            onChange={(e) =>
-                              updateOption(index, "label", e.target.value)
-                            }
-                            placeholder={
-                              formData.type === "message"
-                                ? "Auto-continue"
-                                : "Continue"
-                            }
-                            className="w-full px-3 py-2 bg-slate-700 border border-slate-500 rounded-lg text-white placeholder-slate-400 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            required
-                          />
-                        </div>
-
-                        {/* Next Question Dropdown (same as choice questions) */}
-                        <div className="mb-3">
-                          <label className="block text-xs font-medium text-slate-400 mb-1 flex items-center space-x-1">
-                            <span>Next Question</span>
-                            <span className="text-orange-400">*</span>
-                          </label>
-                          <select
-                            value={option.nextQuestionId || ""}
-                            onChange={(e) =>
-                              updateOption(
-                                index,
-                                "nextQuestionId",
-                                e.target.value
-                              )
-                            }
-                            className="w-full px-3 py-2 bg-slate-700 border border-slate-500 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          >
-                            <option value="">
-                              ⚠️ Select where this leads...
-                            </option>
-                            <optgroup label="📋 Available Questions">
-                              {availableQuestions.map((q) => (
-                                <option key={q._id} value={q._id}>
-                                  {q.text.length > 50
-                                    ? q.text.substring(0, 47) + "..."
-                                    : q.text}
-                                </option>
-                              ))}
-                            </optgroup>
-                            <optgroup label="🎯 Special Actions">
-                              <option value="END_CONVERSATION">
-                                🔚 End Conversation
-                              </option>
-                            </optgroup>
-                          </select>
-
-                          {/* Visual feedback (same as choice questions) */}
-                          {!option.nextQuestionId && (
-                            <div className="mt-1 flex items-center space-x-1 text-xs text-orange-400">
-                              <span>⚠️</span>
-                              <span>This route needs a destination</span>
-                            </div>
-                          )}
-
-                          {option.nextQuestionId && (
-                            <div className="mt-1 flex items-center space-x-1 text-xs text-green-400">
-                              <span>✅</span>
-                              <span>Routing configured</span>
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Remove Route Button */}
-                        <button
-                          type="button"
-                          onClick={() => removeOption(index)}
-                          className="flex items-center space-x-1 px-2 py-1 text-red-400 hover:bg-red-500 hover:bg-opacity-20 rounded text-xs"
-                        >
-                          <Trash2 className="w-3 h-3" />
-                          <span>Remove Route</span>
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Enhanced Choice Options with Simple Branching */}
+            {/* For CHOICE questions - Use full options management */}
             {formData.type === "choice" && (
               <div className="bg-slate-700 p-4 rounded-lg border border-slate-600">
                 <div className="flex items-center justify-between mb-3">
@@ -814,6 +675,83 @@ const NodeEditor = ({ node, onSave, onClose }) => {
                     </div>
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* For NON-CHOICE questions - Use simple nextQuestionId dropdown */}
+            {(formData.type === "message" ||
+              formData.type === "text" ||
+              formData.type === "data_collection") && (
+              <div className="bg-slate-700 p-4 rounded-lg border border-slate-600">
+                <h3 className="font-medium text-white mb-3 flex items-center space-x-2">
+                  <CheckCircle className="w-4 h-4 text-blue-400" />
+                  <span>Next Question</span>
+                </h3>
+
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-300 mb-2">
+                      After this question, go to:
+                    </label>
+                    <select
+                      value={formData.nextQuestionId || ""}
+                      onChange={(e) =>
+                        setFormData((prev) => ({
+                          ...prev,
+                          nextQuestionId: e.target.value,
+                        }))
+                      }
+                      className="w-full px-3 py-2 bg-slate-600 border border-slate-500 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="">⚠️ Select next question...</option>
+                      <optgroup label="📋 Available Questions">
+                        {availableQuestions.map((q) => (
+                          <option key={q._id} value={q._id}>
+                            {q.text.length > 50
+                              ? q.text.substring(0, 47) + "..."
+                              : q.text}
+                          </option>
+                        ))}
+                      </optgroup>
+                      <optgroup label="🎯 Special Actions">
+                        <option value="END_CONVERSATION">
+                          🔚 End Conversation
+                        </option>
+                      </optgroup>
+                    </select>
+
+                    {/* Visual feedback */}
+                    {!formData.nextQuestionId && (
+                      <div className="mt-2 flex items-center space-x-1 text-sm text-orange-400">
+                        <span>⚠️</span>
+                        <span>
+                          Please select where this question should lead
+                        </span>
+                      </div>
+                    )}
+
+                    {formData.nextQuestionId &&
+                      formData.nextQuestionId !== "END_CONVERSATION" && (
+                        <div className="mt-2 flex items-center space-x-1 text-sm text-green-400">
+                          <span>✅</span>
+                          <span>
+                            Will continue to:{" "}
+                            {availableQuestions
+                              .find((q) => q._id === formData.nextQuestionId)
+                              ?.text?.substring(0, 30) + "..." ||
+                              "Selected question"}
+                          </span>
+                        </div>
+                      )}
+
+                    {formData.nextQuestionId === "END_CONVERSATION" && (
+                      <div className="mt-2 flex items-center space-x-1 text-sm text-red-400">
+                        <span>🔚</span>
+                        <span>Will end the conversation</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
             )}
           </div>
