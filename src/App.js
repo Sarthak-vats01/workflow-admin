@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   BrowserRouter as Router,
   Routes,
@@ -10,6 +10,42 @@ import { LayoutGrid, MessageCircle, Settings, Zap } from "lucide-react";
 import FlowCanvas from "./components/FlowBuilder/FlowCanvas";
 import ConversationsList from "./components/Conversations/ConversationList";
 import QuestionList from "./components/Questions/QuestionList";
+import { setPartnerId } from "./services/api";
+
+// ✅ Partner selector component
+const PartnerSelector = ({ onPartnerChange, currentPartner }) => {
+  const testPartners = [
+    { id: "test-partner-1", name: "Test Client A" },
+    { id: "test-partner-2", name: "Test Client B" },
+    { id: "test-partner-3", name: "Test Client C" },
+  ];
+
+  return (
+    <div className="bg-slate-800 border-b border-slate-700 px-6 py-3">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center space-x-4">
+          <label className="text-sm font-medium text-slate-300">
+            🏢 Current Client:
+          </label>
+          <select
+            value={currentPartner}
+            onChange={(e) => onPartnerChange(e.target.value)}
+            className="px-3 py-1.5 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            {testPartners.map((partner) => (
+              <option key={partner.id} value={partner.id}>
+                {partner.name} ({partner.id})
+              </option>
+            ))}
+          </select>
+        </div>
+        <p className="text-xs text-slate-400">
+          Switch between different clients to test flow isolation
+        </p>
+      </div>
+    </div>
+  );
+};
 
 function Navigation() {
   const location = useLocation();
@@ -61,16 +97,58 @@ function Navigation() {
 }
 
 function App() {
+  // ✅ Multi-tenant state management
+  const [currentPartnerId, setCurrentPartnerId] = useState("test-partner-1");
+
+  // ✅ Handle partner change
+  const handlePartnerChange = (newPartnerId) => {
+    setCurrentPartnerId(newPartnerId);
+    setPartnerId(newPartnerId); // Update API context
+    console.log("🏢 Switched to partner:", newPartnerId);
+  };
+
   return (
     <Router>
       <div className="min-h-screen bg-slate-50">
         <Navigation />
 
-        <main className="h-[calc(100vh-4rem)]">
+        {/* ✅ Partner selector */}
+        <PartnerSelector
+          currentPartner={currentPartnerId}
+          onPartnerChange={handlePartnerChange}
+        />
+
+        <main className="h-[calc(100vh-8rem)]">
+          {" "}
+          {/* ✅ Adjusted height for partner selector */}
           <Routes>
-            <Route path="/" element={<FlowCanvas />} />
-            <Route path="/questions" element={<QuestionList />} />
-            <Route path="/conversations" element={<ConversationsList />} />
+            <Route
+              path="/"
+              element={
+                <FlowCanvas
+                  key={currentPartnerId} // ✅ Force re-mount when partner changes
+                  uniquePartnerId={currentPartnerId}
+                />
+              }
+            />
+            <Route
+              path="/questions"
+              element={
+                <QuestionList
+                  key={`questions-${currentPartnerId}`} // ✅ Force re-mount when partner changes
+                  uniquePartnerId={currentPartnerId}
+                />
+              }
+            />
+            <Route
+              path="/conversations"
+              element={
+                <ConversationsList
+                  key={`conversations-${currentPartnerId}`} // ✅ Force re-mount when partner changes
+                  uniquePartnerId={currentPartnerId}
+                />
+              }
+            />
           </Routes>
         </main>
       </div>
