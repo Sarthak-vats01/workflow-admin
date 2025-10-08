@@ -242,7 +242,6 @@ const FlowCanvas = () => {
       console.log(`🔄 Converting question ${index + 1}:`, question);
 
       let nodeType = "text-input";
-
       if (question.isFirst) {
         nodeType = "start";
       } else if (question.type === "choice") {
@@ -257,12 +256,26 @@ const FlowCanvas = () => {
         nodeType = "end";
       }
 
+      // ✅ FIXED: Handle both populated and non-populated nextQuestionId
+      let nextQuestionId = null;
+      if (question.nextQuestionId) {
+        if (typeof question.nextQuestionId === "object") {
+          // It's been populated by MongoDB - extract the _id
+          nextQuestionId = question.nextQuestionId._id;
+        } else {
+          // It's just a string ID
+          nextQuestionId = question.nextQuestionId;
+        }
+      }
+
       console.log(
-        `  └─ Determined type: ${nodeType} (from question.type: ${question.type})`
+        `  └─ Processed nextQuestionId: ${JSON.stringify(
+          question.nextQuestionId
+        )} → ${nextQuestionId}`
       );
 
       const visualNode = {
-        id: question._id,
+        id: question._id.toString(),
         type: nodeType,
         position: question.position || {
           x: 400,
@@ -288,7 +301,7 @@ const FlowCanvas = () => {
             showTypingIndicator: true,
           },
           isFirst: question.isFirst,
-          nextQuestionId: question.nextQuestionId,
+          nextQuestionId: nextQuestionId, // ✅ Use the extracted string ID
         },
       };
 
@@ -309,15 +322,24 @@ const FlowCanvas = () => {
       if (question.options && question.options.length > 0) {
         console.log("🔄 Using options-based connections");
         question.options.forEach((option, index) => {
+          let targetId = null;
+          if (option.nextQuestionId) {
+            if (typeof option.nextQuestionId === "object") {
+              targetId = option.nextQuestionId._id;
+            } else {
+              targetId = option.nextQuestionId;
+            }
+          }
+
           if (
-            option.nextQuestionId &&
-            option.nextQuestionId !== "END_CONVERSATION" &&
-            option.nextQuestionId.toString().trim() !== "" // ✅ FIXED: Convert to string first
+            targetId &&
+            targetId !== "END_CONVERSATION" &&
+            targetId.toString().trim() !== ""
           ) {
             const connection = {
               id: `conn-${question._id}-option-${index}`,
-              source: question._id,
-              target: option.nextQuestionId.toString(), // ✅ FIXED: Ensure target is string
+              source: question._id.toString(),
+              target: targetId.toString(),
               label: option.label || "Next",
               style: getConnectionStyle(question.type),
             };
@@ -326,20 +348,28 @@ const FlowCanvas = () => {
           }
         });
       }
+
       // PRIORITY 2: Fallback to legacy nextQuestionId (simple routing)
-      else if (
+      if (
         question.nextQuestionId &&
         question.nextQuestionId !== "END_CONVERSATION"
       ) {
-        // ✅ FIXED: Handle both ObjectId and string types
-        const nextQuestionIdStr = question.nextQuestionId.toString();
+        let targetId = null;
+        if (typeof question.nextQuestionId === "object") {
+          // It's been populated - extract _id
+          targetId = question.nextQuestionId._id;
+        } else {
+          // It's a string
+          targetId = question.nextQuestionId;
+        }
 
-        if (nextQuestionIdStr.trim() !== "") {
-          console.log("🔄 Using legacy nextQuestionId connection");
+        if (targetId && targetId.toString().trim() !== "") {
+          console.log("🔄 Using legacy nextQuestionId connection:", targetId);
+
           const connection = {
             id: `conn-${question._id}-next`,
-            source: question._id,
-            target: nextQuestionIdStr, // ✅ FIXED: Use string version
+            source: question._id.toString(),
+            target: targetId.toString(),
             label: question.type === "message" ? "Auto-advance" : "Next",
             style: getConnectionStyle(question.type),
           };

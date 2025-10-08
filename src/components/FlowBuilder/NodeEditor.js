@@ -44,6 +44,10 @@ const NodeEditor = ({ node, onSave, onClose }) => {
       nextQuestionId: node.data.nextQuestionId || "",
     };
   });
+  // Add this right after the useState in NodeEditor
+  // Add this right after the useState in NodeEditor
+  console.log("🔧 NodeEditor formData.type:", formData.type);
+  console.log("🔧 NodeEditor formData:", formData);
 
   // New state for available questions
   const [availableQuestions, setAvailableQuestions] = useState([]);
@@ -243,7 +247,7 @@ const NodeEditor = ({ node, onSave, onClose }) => {
                 }
                 className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               >
-                <option value="text">Text Input</option>
+                {/* <option value="text">Text Input</option> */}
                 <option value="choice">Multiple Choice</option>
                 <option value="data_collection">Data Collection</option>
                 <option value="message">Bot Message</option>
@@ -538,11 +542,11 @@ const NodeEditor = ({ node, onSave, onClose }) => {
                               </option>
                             ))}
                           </optgroup>
-                          <optgroup label="🎯 Special Actions">
+                          {/* <optgroup label="🎯 Special Actions">
                             <option value="END_CONVERSATION">
                               🔚 End Conversation
                             </option>
-                          </optgroup>
+                          </optgroup> */}
                         </select>
 
                         {/* Visual feedback */}
@@ -680,7 +684,7 @@ const NodeEditor = ({ node, onSave, onClose }) => {
 
             {/* For NON-CHOICE questions - Use simple nextQuestionId dropdown */}
             {(formData.type === "message" ||
-              formData.type === "text" ||
+              // formData.type === "text" ||
               formData.type === "data_collection") && (
               <div className="bg-slate-700 p-4 rounded-lg border border-slate-600">
                 <h3 className="font-medium text-white mb-3 flex items-center space-x-2">
@@ -713,11 +717,11 @@ const NodeEditor = ({ node, onSave, onClose }) => {
                           </option>
                         ))}
                       </optgroup>
-                      <optgroup label="🎯 Special Actions">
+                      {/* <optgroup label="🎯 Special Actions">
                         <option value="END_CONVERSATION">
                           🔚 End Conversation
                         </option>
-                      </optgroup>
+                      </optgroup> */}
                     </select>
 
                     {/* Visual feedback */}
