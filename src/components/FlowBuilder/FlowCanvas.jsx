@@ -6,6 +6,16 @@ import ContextMenu from "./ContextMenu";
 import NodeEditor from "./NodeEditor";
 import { questionAPI, setPartnerId } from "../../services/api";
 
+const getDefaultText = (nodeType) => {
+  const defaults = {
+    "multiple-choice": "Please select an option:",
+    "data-collection": "Please provide the following information:",
+    message: "This is an informational message.",
+    end: "Thank you for using our chatbot!",
+  };
+  return defaults[nodeType] || "New question";
+};
+
 const FlowCanvas = ({ uniquePartnerId = "test-partner-1" }) => {
   const [nodes, setNodes] = useState([]);
   const [connections, setConnections] = useState([]);
